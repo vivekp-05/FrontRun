@@ -47,9 +47,11 @@ Band** (must be load-bearing in the triage step) + the reply-loop "wow."
 | 3 demo companies | `seed.ts` | ✅ built |
 | In-memory StoreProvider stand-in | `store.mock.ts` | ✅ built |
 | Full-loop integration test | `webhooks.test.ts` | ✅ green |
-| **Band orchestration wrapper** | `band.ts` | ✅ built + tested (prize) |
+| **Band orchestration wrapper** | `band.ts` | ✅ built + LIVE-verified (prize) |
 | Band test suite | `band.test.ts` | ✅ green (added to `test:d`) |
-| **Real integration** (A store, B drafts, Resend domain, routes) | — | ⏳ pending others |
+| **Webhook route adapters + sig verify** | `routes.ts` / `signatures.ts` | ✅ built + tested |
+| Route/signature test suite | `routes.test.ts` | ✅ green (added to `test:d`) |
+| **Real integration** (A store, B drafts, Resend domain, mount routes) | — | ⏳ pending others |
 
 `npm run test:d` is now 4 suites (triage + send + webhooks + band). Committed on
 branch `workstream-d-outreach` (`c8c5891`); Band work not yet committed.
@@ -243,10 +245,13 @@ Stored in `.env.local` (gitignored, never commit). **Set:** `INSFORGE_PROJECT_UR
    `bandTriageRunner()` → `WebhookDeps.triage`, local fallback intact. Agents provisioned
    via `band.provision.mjs`; keys in `.env.local`. **Remaining:** flip the webhook's default
    `triage` to `bandTriageRunner()` at integration (kept plain until then per fallback rule).
-2. **Thin route adapters.** Mount `handleResendWebhook` and `handleCalcomWebhook`
-   as `POST` routes (Next.js `app/api/webhooks/{resend,calcom}/route.ts` or
-   InsForge edge functions). Add signature verification (Resend = Svix headers;
-   Cal.com = HMAC with `CALCOM_WEBHOOK_SECRET`).
+2. ~~**Thin route adapters.**~~ ✅ **DONE** — `routes.ts` + `signatures.ts`.
+   `createResendRoute(deps)` / `createCalcomRoute(deps)` return Web-standard
+   `(Request)=>Response` handlers (drop into Next.js `app/api/webhooks/{resend,calcom}/
+   route.ts` with `export const runtime = "nodejs"`). Verify signature (Resend=Svix,
+   Cal.com=HMAC) over the raw body → parse → dispatch → 200/400/401/500. Dev-bypass
+   when no secret set. Covered by `routes.test.ts` (in `test:d`). **Remaining:** C/A
+   create the two `route.ts` files wiring in A's store + `bandTriageRunner()`.
 3. **Resend domain + inbound MX** (external, blocking for real replies). Set
    `RESEND_FROM_EMAIL`; confirm inbound routing delivers `email.received`.
 4. **Swap `MemStore` → A's InsForge store**; smoke-test one lead through the full
