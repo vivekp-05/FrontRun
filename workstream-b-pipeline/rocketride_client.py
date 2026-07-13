@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from rocketride import RocketRideClient
+from rocketride.schema import Question
 
 DEFAULT_PIPELINE = Path(__file__).resolve().parent / "frontrun.pipe"
 
@@ -75,38 +76,33 @@ async def run_rocketride(args: argparse.Namespace) -> dict[str, Any]:
         pipe = json.loads(Path(args.pipeline).read_text())
         validation = await client.validate(pipe)
 
-        # 2) Deploy + feed the lead through the drafting agent. Pass the LLM
-        #    key(s) as pipeline env so ${ROCKETRIDE_OPENAI_KEY} substitutes reliably.
+        # 2) Deploy. Pass the LLM key(s) as pipeline env so ${ROCKETRIDE_OPENAI_KEY}
+        #    substitutes into the agent's llm node.
         llm_env = {v: os.environ[v] for v in LLM_KEY_VARS if os.getenv(v)}
         used = await client.use(filepath=str(args.pipeline), ttl=180, env=llm_env or None)
         token = used["token"]
 
-        chunks: list[Any] = []
-        response = await client.send(token, lead, on_sse=lambda e: chunks.append(e))
-
-        # 3) Give the agent a moment, then read the run status.
-        answer = ""
-        status: dict[str, Any] = {}
-        for _ in range(12):
-            await asyncio.sleep(2)
-            status = await client.get_task_status(token)
-            if isinstance(status, dict) and (status.get("completed") or status.get("errors")):
-                break
-        for ev in chunks:
-            text = ev.get("text") or ev.get("data") if isinstance(ev, dict) else None
-            if text:
-                answer += str(text)
+        # 3) Ask the drafting agent via chat() — this routes the lead into the
+        #    'questions' lane and returns the agent's answers[] (the drafted email).
+        question = Question(expectJson=True)
+        question.addContext(f"Newly funded company from an SEC Form D filing: {lead}")
+        question.addQuestion(
+            'Write ONE concise, warm first-touch recruiting outreach email offering '
+            'fast technical recruiting help. Return JSON {"subject":"...","body":"..."}.'
+        )
+        response = await client.chat(token=token, question=question)
+        answers = response.get("answers") if isinstance(response, dict) else None
 
         await client.terminate(token)
 
+    draft = answers[0] if answers else None
     return {
         "connected": True,
         "validated": bool(validation),
         "token": token,
         "llm_key_present": have_llm_key,
-        "draft": answer or None,
-        "response_handle": response,
-        "status_errors": (status or {}).get("errors", []),
+        "draft": draft,
+        "objectId": response.get("objectId") if isinstance(response, dict) else None,
     }
 
 
@@ -136,13 +132,8 @@ async def main() -> None:
             + " (an sk-... key)\n  to .env.local for a live draft. The rr_ key authenticates orchestration only (BYOK inference).",
             file=sys.stderr,
         )
-    elif not result["draft"]:
-        print(
-            "\n✓ RocketRide connected, validated, deployed, and ran the drafting pipeline with the LLM key\n"
-            "  (no errors). The answer returns as an async object handle (see response_handle); the draft\n"
-            "  text streams over the DataPipe rather than the send() return. Pipeline is live on RocketRide.",
-            file=sys.stderr,
-        )
+    elif result["draft"]:
+        print("\n✓ RocketRide Cloud drafted the outreach email live (agent_rocketride + OpenAI).", file=sys.stderr)
 
 
 if __name__ == "__main__":
