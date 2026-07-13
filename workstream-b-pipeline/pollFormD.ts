@@ -1,4 +1,5 @@
 import { FormDSignal, Lead, LeadStatus } from "../shared/types"
+import { fetchFormD } from "./edgar"
 import { PipelineEnv, readPipelineEnv, requireEdgarUserAgent } from "./env"
 
 interface EdgarHit {
@@ -6,6 +7,7 @@ interface EdgarHit {
   accessionNo?: string
   adsh?: string
   cik?: string
+  ciks?: string[]
   companyName?: string
   entityName?: string
   display_names?: string[]
@@ -26,6 +28,12 @@ interface EdgarSearchResponse {
   }
 }
 
+/** A normalized hit plus the issuer CIK we need to fetch the filing document. */
+interface Candidate {
+  signal: FormDSignal
+  cik?: string
+}
+
 export interface PollFormDOptions {
   env?: PipelineEnv
   limit?: number
@@ -33,6 +41,8 @@ export interface PollFormDOptions {
   lookbackDays?: number
   fallbackLookbackDays?: number
   includeFunds?: boolean
+  /** Skip the primary_doc.xml detail fetch (names/amount/address). Default false. */
+  skipFilingDetails?: boolean
 }
 
 export async function pollRecentFormD(options: PollFormDOptions = {}): Promise<FormDSignal[]> {
@@ -41,15 +51,37 @@ export async function pollRecentFormD(options: PollFormDOptions = {}): Promise<F
   const lookbackDays = options.lookbackDays ?? 30
   const fallbackLookbackDays = options.fallbackLookbackDays ?? 365
   const fromDate = options.fromDate ?? isoDateDaysAgo(lookbackDays)
-  const fallbackFromDate = options.fromDate ? fromDate : isoDateDaysAgo(fallbackLookbackDays)
+  const includeFunds = options.includeFunds ?? false
+
+  let candidates = await searchWindow(fromDate, env, limit, includeFunds)
+  if (candidates.length === 0 && !options.fromDate && fallbackLookbackDays > lookbackDays) {
+    // Re-QUERY with the wider window — the first response only covered the narrow one.
+    candidates = await searchWindow(isoDateDaysAgo(fallbackLookbackDays), env, limit, includeFunds)
+  }
+
+  if (options.skipFilingDetails) return candidates.map((c) => c.signal)
+  // Fill real exec names / amount raised / address from primary_doc.xml (PRD §4).
+  return Promise.all(candidates.map((c) => enrichSignalFromFiling(c)))
+}
+
+/**
+ * One EDGAR full-text search request. EFTS silently ignores the date filter
+ * unless BOTH startdt and enddt are present, and does not support sort/size
+ * params — so we send the minimal verified query (same as edgar.ts) and
+ * filter/sort client-side.
+ */
+async function searchWindow(
+  fromDate: string,
+  env: PipelineEnv,
+  limit: number,
+  includeFunds: boolean,
+): Promise<Candidate[]> {
   const url = new URL("https://efts.sec.gov/LATEST/search-index")
+  url.searchParams.set("q", "")
   url.searchParams.set("forms", "D")
-  url.searchParams.set("q", "Form D")
-  url.searchParams.set("from", "0")
-  url.searchParams.set("size", String(Math.max(limit * 3, 25)))
-  url.searchParams.set("sort", "filedAt:desc")
-  url.searchParams.set("dateRange", "custom")
   url.searchParams.set("startdt", fromDate)
+  url.searchParams.set("enddt", isoDateDaysAgo(0))
+  url.searchParams.set("from", "0")
 
   const response = await fetch(url, {
     headers: {
@@ -64,14 +96,10 @@ export async function pollRecentFormD(options: PollFormDOptions = {}): Promise<F
 
   const payload = (await response.json()) as EdgarSearchResponse
   const hits = payload.hits?.hits ?? []
-
-  const recent = normalizeAndSortSignals(hits, fromDate, limit, options.includeFunds ?? false)
-  if (recent.length > 0 || fallbackLookbackDays <= lookbackDays) return recent
-
-  return normalizeAndSortSignals(hits, fallbackFromDate, limit, options.includeFunds ?? false)
+  return normalizeAndSortCandidates(hits, fromDate, limit, includeFunds)
 }
 
-function normalizeAndSortSignals(
+function normalizeAndSortCandidates(
   hits: Array<{
     _id?: string
     _source?: EdgarHit
@@ -79,19 +107,20 @@ function normalizeAndSortSignals(
   fromDate: string,
   limit: number,
   includeFunds: boolean,
-): FormDSignal[] {
+): Candidate[] {
   const cutoff = new Date(fromDate).getTime()
   const normalized = hits
-    .map((hit) => normalizeEdgarHit(hit._source ?? { _id: hit._id }))
-    .filter((signal): signal is FormDSignal => Boolean(signal))
-    .filter((signal) => new Date(signal.filedAt).getTime() >= cutoff)
-    .sort((a, b) => new Date(b.filedAt).getTime() - new Date(a.filedAt).getTime())
+    .map((hit) => normalizeEdgarHit({ ...(hit._source ?? {}), _id: hit._source?._id ?? hit._id }))
+    .filter((candidate): candidate is Candidate => Boolean(candidate))
+    .filter((candidate) => new Date(candidate.signal.filedAt).getTime() >= cutoff)
+    .sort((a, b) => new Date(b.signal.filedAt).getTime() - new Date(a.signal.filedAt).getTime())
 
-  const operatingCompanies = includeFunds ? normalized : normalized.filter((signal) => !isFundLike(signal.companyName))
+  const operatingCompanies = includeFunds
+    ? normalized
+    : normalized.filter((candidate) => !isFundLike(candidate.signal.companyName))
   const candidates = operatingCompanies.length > 0 ? operatingCompanies : normalized
 
-  return candidates
-    .slice(0, limit)
+  return candidates.slice(0, limit)
 }
 
 export function detectedLeadFromSignal(signal: FormDSignal): Lead {
@@ -102,27 +131,64 @@ export function detectedLeadFromSignal(signal: FormDSignal): Lead {
     status: LeadStatus.DETECTED,
     isDemo: false,
     signal,
+    replies: [],
     createdAt: now,
     updatedAt: now,
   }
 }
 
-function normalizeEdgarHit(hit: EdgarHit): FormDSignal | null {
-  const accessionNumber = hit.accessionNo ?? hit.adsh ?? hit._id
+function normalizeEdgarHit(hit: EdgarHit): Candidate | null {
+  // EFTS `_id` is "<accession>:<document>"; `adsh` is the bare accession.
+  const accessionNumber = hit.accessionNo ?? hit.adsh ?? String(hit._id ?? "").split(":")[0]
   const companyName =
     hit.companyName ?? hit.entityName ?? hit.display_names?.[0]?.replace(/\s+\(.*\)$/, "")
 
   if (!accessionNumber || !companyName) return null
 
   const filedAt = hit.filedAt ?? hit.filed ?? hit.file_date ?? new Date().toISOString()
-  const edgarUrl = hit.linkToFilingDetails ?? hit.linkToHtml ?? accessionUrl(accessionNumber)
+  const cik = (hit.ciks?.[0] ?? hit.cik ?? "").replace(/^0+/, "") || undefined
+  const edgarUrl =
+    hit.linkToFilingDetails ??
+    hit.linkToHtml ??
+    (cik ? `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik}&type=D` : undefined)
 
   return {
-    accessionNumber,
-    companyName,
-    relatedPersons: [],
-    filedAt: new Date(filedAt).toISOString(),
-    edgarUrl: edgarUrl?.startsWith("http") ? edgarUrl : edgarUrl ? `https://www.sec.gov${edgarUrl}` : undefined,
+    cik,
+    signal: {
+      accessionNumber,
+      companyName,
+      relatedPersons: [],
+      filedAt: new Date(filedAt).toISOString(),
+      edgarUrl: edgarUrl?.startsWith("http") ? edgarUrl : edgarUrl ? `https://www.sec.gov${edgarUrl}` : undefined,
+    },
+  }
+}
+
+/**
+ * Pull the filing's primary_doc.xml (via edgar.ts's live-tested parser) to fill
+ * the real Form D fields: exec/director names, amount raised, mailing address.
+ * Best-effort — a parse failure keeps the basic signal instead of dropping it.
+ */
+async function enrichSignalFromFiling(candidate: Candidate): Promise<FormDSignal> {
+  if (!candidate.cik) return candidate.signal
+  try {
+    const parsed = await fetchFormD(
+      candidate.cik,
+      candidate.signal.accessionNumber,
+      candidate.signal.filedAt.slice(0, 10),
+    )
+    const relatedPersons = parsed.persons.map((p) =>
+      p.role && p.role !== "Related Person" ? `${p.name} (${p.role})` : p.name,
+    )
+    return {
+      ...candidate.signal,
+      companyName: parsed.entityName || candidate.signal.companyName,
+      relatedPersons,
+      address: parsed.address || candidate.signal.address,
+      amountRaised: parsed.amountRaised || candidate.signal.amountRaised,
+    }
+  } catch {
+    return candidate.signal
   }
 }
 
@@ -140,10 +206,4 @@ function isFundLike(companyName: string): boolean {
   return /\b(fund|lp|l\.p\.|reit|portfolio|partners|holdings|capital|credit|income|bond|arbitrage|offshore|onshore|master|series)\b/i.test(
     companyName,
   )
-}
-
-function accessionUrl(accessionNumber: string): string {
-  const cik = accessionNumber.split("-")[0]
-  const compactAccession = accessionNumber.replace(/-/g, "")
-  return `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${compactAccession}/primary_doc.xml`
 }

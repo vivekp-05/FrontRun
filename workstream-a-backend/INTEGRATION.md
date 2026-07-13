@@ -34,6 +34,9 @@ Then fill `brief` / `contact` / `draft` as you enrich, and advance status via `/
 | `POST` | `/leads/bulk` | `Lead[]` (or `{ leads: [] }`) → `{ upserted, skipped }` |
 | `POST` | `/leads/:id/transition` | `{ to: LeadStatus }` → `Lead` \| **409** if illegal |
 | `GET`  | `/leads` · `/leads/:id` · `/analytics` | read back |
+| `POST` | `/outreach` | `{ ids?: string[] }` (default: all `isDemo` `DRAFTED`) → `{ attempted, results: [{ leadId, status?, error? }] }` |
+| `POST` | `/webhooks/resend` | Resend event payload → `WebhookResult` (delivered/opened/bounced/received) |
+| `POST` | `/webhooks/calcom` | Cal.com `BOOKING_CREATED` payload → `WebhookResult` |
 
 Default base URL: `http://localhost:4000` (set `PORT` to change). CORS is open.
 

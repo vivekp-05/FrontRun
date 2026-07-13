@@ -100,6 +100,7 @@ export interface LeadRow {
   draft: unknown;
   outreach: unknown;
   replies: unknown;
+  lead_score: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -116,6 +117,7 @@ export function rowToLead(r: LeadRow | Record<string, any>): Lead {
     draft: r.draft == null ? undefined : p(r.draft),
     outreach: r.outreach == null ? undefined : p(r.outreach),
     replies: r.replies == null ? [] : p(r.replies),
+    leadScore: r.lead_score == null ? undefined : p(r.lead_score),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -134,6 +136,7 @@ export function leadToParams(lead: Lead): unknown[] {
     j(lead.draft),
     j(lead.outreach),
     j(lead.replies ?? []),
+    j(lead.leadScore),
     lead.createdAt,
     lead.updatedAt,
   ];
@@ -196,8 +199,8 @@ export class InsforgeStore implements StoreProvider {
     const saved = stamp(lead, existing ?? undefined);
     const rows = await this.sql<LeadRow>(
       `insert into ${this.table}
-         (id, status, is_demo, filed_at, signal, brief, contact, draft, outreach, replies, created_at, updated_at)
-       values ($1, $2, $3, $4::timestamptz, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::timestamptz, $12::timestamptz)
+         (id, status, is_demo, filed_at, signal, brief, contact, draft, outreach, replies, lead_score, created_at, updated_at)
+       values ($1, $2, $3, $4::timestamptz, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12::timestamptz, $13::timestamptz)
        on conflict (id) do update set
          status     = excluded.status,
          is_demo    = excluded.is_demo,
@@ -208,6 +211,7 @@ export class InsforgeStore implements StoreProvider {
          draft      = excluded.draft,
          outreach   = excluded.outreach,
          replies    = excluded.replies,
+         lead_score = excluded.lead_score,
          updated_at = excluded.updated_at
        returning *`,
       leadToParams(saved)

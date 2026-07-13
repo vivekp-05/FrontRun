@@ -27,7 +27,7 @@ async function main() {
   const n = await seedInto(store);
   ok("seed loads all leads", n === SEED_LEADS.length && (await store.listLeads()).length === n);
 
-  const demo = await store.getLead("9001");
+  const demo = await store.getLead("demo_1");
   ok("getLead returns a demo lead at DRAFTED", demo?.status === LeadStatus.DRAFTED && demo?.isDemo === true);
   ok("getLead(missing) → null", (await store.getLead("nope")) === null);
 
@@ -47,14 +47,14 @@ async function main() {
   // ── full happy path on a demo lead ──
   const path = [LeadStatus.SENT, LeadStatus.DELIVERED, LeadStatus.REPLIED, LeadStatus.GREEN, LeadStatus.BOOKED];
   let last: Lead | null = null;
-  for (const s of path) last = await store.transition("9001", s);
+  for (const s of path) last = await store.transition("demo_1", s);
   ok("demo lead walks DRAFTED → … → BOOKED", last?.status === LeadStatus.BOOKED);
-  await throws("cannot transition out of BOOKED (terminal)", () => store.transition("9001", LeadStatus.SENT), IllegalTransitionError);
+  await throws("cannot transition out of BOOKED (terminal)", () => store.transition("demo_1", LeadStatus.SENT), IllegalTransitionError);
 
   // idempotent same-state (e.g. duplicate delivery webhook)
-  await store.transition("9002", LeadStatus.SENT);
-  await store.transition("9002", LeadStatus.DELIVERED);
-  const again = await store.transition("9002", LeadStatus.DELIVERED);
+  await store.transition("demo_2", LeadStatus.SENT);
+  await store.transition("demo_2", LeadStatus.DELIVERED);
+  const again = await store.transition("demo_2", LeadStatus.DELIVERED);
   ok("re-applying same status is a no-op", again.status === LeadStatus.DELIVERED);
 
   // ── analytics ──
@@ -75,7 +75,7 @@ async function main() {
   const b = computeFunnel(synthetic);
   ok("replyRate = replied/delivered = 1.0", b.replyRate === 1);
   ok("avgResponseTimeMs computed (30 min)", b.avgResponseTimeMs === 30 * 60 * 1000);
-  ok("greenRedRatio with 1 green 0 red = Infinity", b.greenRedRatio === Infinity);
+  ok("greenRedRatio with 1 green 0 red = undefined (JSON-safe)", b.greenRedRatio === undefined);
 
   // ── InsForge row mapping (no network) ──
   const sample = SEED_LEADS[0];
@@ -91,11 +91,11 @@ async function main() {
   ok("rowToLead: null jsonb columns → undefined", back.brief === undefined && back.outreach === undefined);
   // some drivers return jsonb as a string — mapper must parse both
   const back2 = rowToLead({ ...row, signal: JSON.stringify(sample.signal), replies: JSON.stringify([]) });
-  ok("rowToLead parses stringified jsonb", back2.signal.companyName === sample.signal.companyName && back2.replies.length === 0);
+  ok("rowToLead parses stringified jsonb", back2.signal.companyName === sample.signal.companyName && back2.replies?.length === 0);
 
   const params = leadToParams(sample);
-  ok("leadToParams: 12 ordered params, id first, is_demo boolean",
-    params.length === 12 && params[0] === sample.id && typeof params[2] === "boolean");
+  ok("leadToParams: 13 ordered params, id first, is_demo boolean",
+    params.length === 13 && params[0] === sample.id && typeof params[2] === "boolean");
   ok("leadToParams: jsonb params are JSON strings", typeof params[4] === "string" && JSON.parse(params[4] as string).companyName === sample.signal.companyName);
 
   const stmts = splitSql("-- comment\ncreate table a (id text);\n\ncreate index i on a(id);\n");

@@ -113,10 +113,10 @@ All files under `workstream-d-outreach/`. Imports use the `@shared/*` path alias
 - `triage(reply, lead, opts?) → Promise<ReplyEvent>` — main entry. Summarizes,
   classifies green/yellow/red, drafts the next step. **Never throws**: any LLM
   failure degrades to the deterministic mock and is marked `via: "mock"`.
-- Real LLM path = **InsForge Model Gateway** (OpenAI-compatible):
-  `POST {INSFORGE_PROJECT_URL}/v1/chat/completions`, `Bearer {INSFORGE_API_KEY}`,
-  `response_format: json_object`, model from `TRIAGE_MODEL`
-  (default `anthropic/claude-3.5-sonnet`, routed via OpenRouter).
+- Real LLM path = **InsForge AI gateway** (live-verified 2026-07-13):
+  `POST {INSFORGE_PROJECT_URL}/api/ai/chat/completion`, `Bearer {INSFORGE_API_KEY}`,
+  body `{ model, messages, temperature, maxTokens }`, response in `.text`.
+  Model from `TRIAGE_MODEL` (default `anthropic/claude-sonnet-4` — the 3.5 slug 404s).
 - `TriageLLM` interface = the swappable seam. **This is where Band plugs in.**
 - Mock path = keyword classifier; opt-out signals beat incidental "yes".
 - Draft logic: green → booking nudge (+Cal link); yellow → clarifier; red → none.

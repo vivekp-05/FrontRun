@@ -3,8 +3,13 @@
  * These are real SEC Form D companies (pulled 2026-07-13) plus the 3 controlled
  * demo companies for the parallel-outreach demo (isDemo = true). B replaces the
  * real ones with live detection; the demo trio stays.
+ *
+ * The demo trio comes from Workstream D's seed (the ONE canonical set): it has
+ * contact + draft filled, so "Run outreach" can actually send it (D's
+ * requireSendable). Inboxes come from DEMO_INBOX_1..3.
  */
 import { Lead, LeadStatus } from "../shared/types";
+import { demoLeads } from "../workstream-d-outreach/seed";
 
 function iso(d = new Date()): string {
   return d.toISOString();
@@ -47,17 +52,23 @@ export const REAL_SEED: Lead[] = [
   makeLead({ id: "2141371", company: "Choice AI Inc.", persons: ["Neha Mittal"], amount: "18694940", filedAt: "2026-06-24", address: "945 Market St Suite 501, San Francisco, CA 94103" }),
 ];
 
-/** 3 controlled demo companies for the parallel-send demo (start DRAFTED). */
-export const DEMO_SEED: Lead[] = [
-  makeLead({ id: "9001", company: "Northwind AI", persons: ["Alex Rivera"], amount: "12000000", filedAt: "2026-07-11", address: "San Francisco, CA", isDemo: true, status: LeadStatus.DRAFTED }),
-  makeLead({ id: "9002", company: "Ledgerpry", persons: ["Sam Okafor"], amount: "8500000", filedAt: "2026-07-11", address: "Palo Alto, CA", isDemo: true, status: LeadStatus.DRAFTED }),
-  makeLead({ id: "9003", company: "Voltmix Robotics", persons: ["Priya Desai"], amount: "22000000", filedAt: "2026-07-11", address: "Oakland, CA", isDemo: true, status: LeadStatus.DRAFTED }),
-];
+/** 3 controlled demo companies (D's canonical sendable trio, start DRAFTED). */
+export const DEMO_SEED: Lead[] = demoLeads();
 
 export const SEED_LEADS: Lead[] = [...DEMO_SEED, ...REAL_SEED];
 
-/** Load the seed into any StoreProvider. */
-export async function seedInto(store: { upsertLead: (l: Lead) => Promise<Lead> }): Promise<number> {
-  for (const l of SEED_LEADS) await store.upsertLead(l);
-  return SEED_LEADS.length;
+/** Load the seed into any StoreProvider — but NEVER reset a lead that already
+ *  exists (a mid-demo restart with SEED_DEMO=1 must not wipe in-flight demo
+ *  leads back to DRAFTED). Returns how many were actually inserted. */
+export async function seedInto(store: {
+  upsertLead: (l: Lead) => Promise<Lead>;
+  getLead?: (id: string) => Promise<Lead | null>;
+}): Promise<number> {
+  let inserted = 0;
+  for (const l of SEED_LEADS) {
+    if (store.getLead && (await store.getLead(l.id))) continue;
+    await store.upsertLead(l);
+    inserted++;
+  }
+  return inserted;
 }

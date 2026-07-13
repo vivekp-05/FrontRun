@@ -13,6 +13,9 @@
  *   GET    /analytics                 → FunnelAnalytics
  *   POST   /seed                      → load seed leads
  *   POST   /reset                     → clear + reseed (in-memory only)
+ *   POST   /outreach                  → run D's outreach on demo DRAFTED leads (body: { ids?: string[] })
+ *   POST   /webhooks/resend           → Resend delivery/inbound events → D's handler
+ *   POST   /webhooks/calcom           → Cal.com BOOKING_CREATED → D's handler
  *
  * When InsForge is wired, the same routes serve straight from Postgres; the
  * frontend contract does not change.
@@ -24,6 +27,8 @@ import { store } from "./store";
 import { createAnalytics } from "./analytics";
 import { seedInto, SEED_LEADS } from "./seed";
 import { IllegalTransitionError } from "./stateMachine";
+import { runOutreach } from "../workstream-d-outreach/send";
+import { handleResendWebhook, handleCalcomWebhook } from "../workstream-d-outreach/webhooks";
 
 const analytics = createAnalytics(store);
 const PORT = Number(process.env.PORT ?? 4000);
@@ -85,6 +90,24 @@ const server = http.createServer(async (req, res) => {
       }
       return send(res, 200, { upserted, skipped: skipped.length });
     }
+
+    // ── D's outreach loop, mounted over HTTP (the "Run outreach" button + webhooks) ──
+    if (method === "POST" && path === "/outreach") {
+      const body = await readBody(req);
+      const ids: string[] | undefined = Array.isArray(body?.ids) ? body.ids : undefined;
+      const all = await store.listLeads();
+      const leads = ids
+        ? all.filter((l) => ids.includes(l.id))
+        : all.filter((l) => l.isDemo && l.status === LeadStatus.DRAFTED);
+      const results = await runOutreach(leads, store);
+      return send(res, 200, { attempted: leads.length, results });
+    }
+
+    if (method === "POST" && path === "/webhooks/resend")
+      return send(res, 200, await handleResendWebhook(await readBody(req), { store }));
+
+    if (method === "POST" && path === "/webhooks/calcom")
+      return send(res, 200, await handleCalcomWebhook(await readBody(req), { store }));
 
     if (method === "POST" && path === "/seed") {
       const n = await seedInto(store);

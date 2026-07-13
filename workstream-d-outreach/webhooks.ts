@@ -66,22 +66,27 @@ const iso = (deps: WebhookDeps) => (deps.now ? deps.now() : new Date().toISOStri
 
 /**
  * Advance a lead only if the move is legal; no-op if it's already at/past the
- * target. Returns the resulting lead. Never throws on a duplicate webhook.
+ * target. Returns the resulting lead (null when the lead doesn't exist — e.g.
+ * a stale webhook after a store reset). Never throws on a duplicate webhook.
  */
 async function advance(
   store: StoreProvider,
   leadId: string,
   to: LeadStatusType,
-): Promise<{ lead: Lead; moved: boolean }> {
+): Promise<{ lead: Lead | null; moved: boolean }> {
   const lead = await store.getLead(leadId)
-  if (!lead) throw new Error(`no lead ${leadId}`)
+  if (!lead) return { lead: null, moved: false }
   if (lead.status === to) return { lead, moved: false }
   try {
     const next = await store.transition(leadId, to)
     return { lead: next, moved: true }
-  } catch {
-    // Illegal from the current state (e.g. duplicate/out-of-order event) — skip.
-    return { lead, moved: false }
+  } catch (err) {
+    // Only swallow contract violations (duplicate/out-of-order events). A real
+    // store failure (network, 500) must surface so the provider retries.
+    if ((err as Error)?.name?.includes("Transition") || /illegal transition/i.test(String((err as Error)?.message))) {
+      return { lead, moved: false }
+    }
+    throw err
   }
 }
 
@@ -126,8 +131,12 @@ async function onDelivered(data: any, deps: WebhookDeps): Promise<WebhookResult>
   const leadId = extractOutboundLeadId(data)
   if (!leadId) return { ok: true, action: "delivered:unmatched" }
   const { lead } = await advance(deps.store, leadId, LeadStatus.DELIVERED)
-  await mergeOutreach(deps.store, lead, { deliveredAt: iso(deps) })
-  return { ok: true, action: "delivered", leadId, status: LeadStatus.DELIVERED }
+  if (!lead) return { ok: true, action: "delivered:unmatched", note: `no lead ${leadId}` }
+  // Keep the FIRST delivery timestamp — replayed webhooks must not rewrite it.
+  const saved = await mergeOutreach(deps.store, lead, {
+    deliveredAt: lead.outreach?.deliveredAt ?? iso(deps),
+  })
+  return { ok: true, action: "delivered", leadId, status: saved.status }
 }
 
 async function onOpened(data: any, deps: WebhookDeps): Promise<WebhookResult> {
@@ -135,7 +144,8 @@ async function onOpened(data: any, deps: WebhookDeps): Promise<WebhookResult> {
   if (!leadId) return { ok: true, action: "opened:unmatched" }
   // Opened is directional only (pixel unreliable) — record time, best-effort move.
   const { lead } = await advance(deps.store, leadId, LeadStatus.OPENED)
-  await mergeOutreach(deps.store, lead, { openedAt: iso(deps) })
+  if (!lead) return { ok: true, action: "opened:unmatched", note: `no lead ${leadId}` }
+  await mergeOutreach(deps.store, lead, { openedAt: lead.outreach?.openedAt ?? iso(deps) })
   return { ok: true, action: "opened", leadId, status: lead.status }
 }
 
@@ -147,6 +157,7 @@ async function onBounce(
   const leadId = extractOutboundLeadId(data)
   if (!leadId) return { ok: true, action: `${type}:unmatched` }
   const { lead } = await advance(deps.store, leadId, LeadStatus.LOST)
+  if (!lead) return { ok: true, action: `${type}:unmatched`, note: `no lead ${leadId}` }
   return {
     ok: true,
     action: type,
@@ -175,9 +186,10 @@ async function onInboundReply(
   // A reply proves delivery — make sure we're at least DELIVERED first, so the
   // REPLIED transition is legal even if the delivery webhook never/late arrived.
   if (lead.status === LeadStatus.SENT) {
-    ;({ lead } = await advance(deps.store, leadId, LeadStatus.DELIVERED))
-    lead = await mergeOutreach(deps.store, lead, {
-      deliveredAt: lead.outreach?.deliveredAt ?? iso(deps),
+    const adv = await advance(deps.store, leadId, LeadStatus.DELIVERED)
+    if (!adv.lead) return { ok: true, action: "reply:unmatched", leadId }
+    lead = await mergeOutreach(deps.store, adv.lead, {
+      deliveredAt: adv.lead.outreach?.deliveredAt ?? iso(deps),
     })
   }
 
@@ -187,6 +199,10 @@ async function onInboundReply(
     receivedAt: iso(deps),
     from: extractFromEmail(data) ?? "unknown",
     rawText: extractReplyText(data),
+  }
+  // Idempotency: a replayed webhook (same event id) must not duplicate the reply.
+  if ((lead.replies ?? []).some((r) => r.id === rawReply.id)) {
+    return { ok: true, action: "reply:duplicate", leadId, status: lead.status }
   }
   lead = await deps.store.upsertLead({
     ...lead,
@@ -213,16 +229,16 @@ async function onInboundReply(
       : classification === "red"
         ? LeadStatus.RED
         : LeadStatus.YELLOW
-  ;({ lead } = await advance(deps.store, leadId, targetClass))
+  lead = (await advance(deps.store, leadId, targetClass)).lead ?? lead
 
   // Next step per class.
   if (classification === "red") {
-    ;({ lead } = await advance(deps.store, leadId, LeadStatus.LOST))
+    lead = (await advance(deps.store, leadId, LeadStatus.LOST)).lead ?? lead
     return {
       ok: true,
       action: "triaged",
       leadId,
-      status: LeadStatus.LOST,
+      status: lead.status,
       classification,
       note: "not interested → stop (opt-out respected)",
     }
@@ -230,7 +246,7 @@ async function onInboundReply(
 
   // green / yellow → we have a drafted next step.
   if (triaged.nextStepDraft) {
-    ;({ lead } = await advance(deps.store, leadId, LeadStatus.FOLLOW_UP_DRAFTED))
+    lead = (await advance(deps.store, leadId, LeadStatus.FOLLOW_UP_DRAFTED)).lead ?? lead
   }
   return {
     ok: true,
@@ -274,11 +290,23 @@ export async function handleCalcomWebhook(
   const leadId = await resolveBookingLeadId(booking, deps.store)
   if (!leadId) return { ok: true, action: "booking:unmatched" }
 
-  const { lead } = await advance(deps.store, leadId, LeadStatus.BOOKED)
-  await mergeOutreach(deps.store, lead, {
-    bookedAt: booking?.startTime ?? iso(deps),
-  })
-  return { ok: true, action: "booked", leadId, status: LeadStatus.BOOKED }
+  const { lead, moved } = await advance(deps.store, leadId, LeadStatus.BOOKED)
+  if (!lead) return { ok: true, action: "booking:unmatched", note: `no lead ${leadId}` }
+  const booked = lead.status === LeadStatus.BOOKED
+  if (booked) {
+    await mergeOutreach(deps.store, lead, {
+      bookedAt: lead.outreach?.bookedAt ?? booking?.startTime ?? iso(deps),
+    })
+  }
+  // Honest status: report what the store actually says. A booking that arrives
+  // before a reply (illegal jump) is surfaced, not claimed as BOOKED.
+  return {
+    ok: true,
+    action: booked ? "booked" : "booking:out-of-order",
+    leadId,
+    status: lead.status,
+    note: moved ? undefined : booked ? "replay — already booked" : `booking event at ${lead.status}`,
+  }
 }
 
 // ---------------------------------------------------------------------------

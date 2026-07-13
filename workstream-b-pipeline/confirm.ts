@@ -309,7 +309,9 @@ function isFundingConfirmed(text: string): boolean {
     return false
   }
 
-  return /\b(raised \$|raised [0-9]|raised a|raises \$|funding round|series [a-f]\b|seed round|closed.*round|secured.*funding|form d filing)\b/i.test(
+  // NOTE: no "form d" phrases here — the filing IS the signal; confirmation must
+  // come from independent coverage of the raise (PRD §4).
+  return /\b(raised \$|raised [0-9]|raised a|raises \$|funding round|series [a-f]\b|seed round|closed.*round|secured.*funding)\b/i.test(
     text,
   )
 }

@@ -33,19 +33,27 @@
         "type": "object"
       }
     },
-    "required": ["steps", "lead"]
+    "required": [
+      "steps",
+      "lead"
+    ]
   },
   "patch_sequence": [
-    "POST lead",
-    "PATCH researchSummary",
-    "PATCH email",
-    "PATCH leadScore",
-    "PATCH draftEmail"
+    "POST lead (DETECTED)",
+    "upsert researchSummary/brief (status untouched)",
+    "upsert contact + transition ENRICHED",
+    "upsert leadScore",
+    "upsert draft + transition DRAFTED"
   ],
   "entrypoint": {
     "type": "command",
     "command": "npm",
-    "args": ["run", "track-b:run", "--", "--json-stdin"],
+    "args": [
+      "run",
+      "track-b:run",
+      "--",
+      "--json-stdin"
+    ],
     "env_file": ".env.local",
     "cwd": "."
   },
@@ -57,5 +65,11 @@
     "draft_outreach",
     "optional_persist"
   ],
-  "tags": ["track-b", "you.com", "nimble", "rocketride", "form-d"]
+  "tags": [
+    "track-b",
+    "you.com",
+    "nimble",
+    "rocketride",
+    "form-d"
+  ]
 }

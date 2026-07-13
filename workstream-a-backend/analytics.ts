@@ -62,7 +62,9 @@ export function computeFunnel(leads: Lead[]): FunnelAnalytics {
     counts,
     replyRate: delivered > 0 ? replied / delivered : 0,
     avgResponseTimeMs: respN > 0 ? Math.round(respSum / respN) : undefined,
-    greenRedRatio: red > 0 ? green / red : green > 0 ? Infinity : 0,
+    // undefined (not Infinity) when no reds: Infinity JSON-serializes to null,
+    // which would violate the number contract for C. C renders missing as em dash.
+    greenRedRatio: red > 0 ? green / red : green > 0 ? undefined : 0,
   };
 }
 

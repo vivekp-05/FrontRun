@@ -1,4 +1,5 @@
-import { Lead, StoreProvider } from "../shared/types"
+import { Lead, LeadStatus, StoreProvider } from "../shared/types"
+import { IllegalTransitionError } from "../workstream-a-backend/stateMachine"
 import { draftOutreach } from "./draft"
 import { enrichContact, EnrichLeadOptions, researchLead } from "./enrich"
 import { PipelineEnv } from "./env"
@@ -17,6 +18,7 @@ export interface RocketRidePipelineOutput {
   steps: Array<
     | "detected"
     | "posted"
+    | "resumed"
     | "research_patched"
     | "email_patched"
     | "score_patched"
@@ -50,80 +52,79 @@ export async function runRocketRidePipeline(
 
   steps.push("detected")
 
+  const persist = Boolean(input.persist && options.store)
+  const store = options.store
   let current = lead
 
-  if (input.persist && options.store) {
-    current = await options.store.upsertLead(current)
+  if (persist && store) {
+    const existing = await store.getLead(current.id)
+    if (existing && existing.status !== LeadStatus.DETECTED) {
+      // Already in flight (possibly owned by D past DRAFTED) — never clobber it.
+      steps.push("resumed")
+      return { lead: existing, steps }
+    }
+    current = await store.upsertLead(existing ? { ...current, createdAt: existing.createdAt } : current)
     steps.push("posted")
   }
 
   current = await researchLead(current, { ...options, domain: input.domain })
-  current = await patchOrUpsert(input.persist, options.store, current, {
-    researchSummary: current.brief?.summary,
-    brief: current.brief,
-  })
-  if (input.persist && options.store) steps.push("research_patched")
+  if (persist && store) {
+    current = await persistData(store, current)
+    steps.push("research_patched")
+  }
 
   const enriched = await enrichContact(current, { ...options, domain: input.domain })
   steps.push("enriched")
-  if (enriched.contact?.emailConfidence && enriched.contact.emailConfidence !== "unverified") {
+  if (enriched.contact?.email && enriched.contact.emailConfidence !== "unverified") {
+    // Only claimed when a verifier actually assigned a confidence tier.
     steps.push("verified")
   }
-  current = await patchOrUpsert(input.persist, options.store, enriched, {
-    email: enriched.contact?.email,
-    contact: enriched.contact,
-    status: enriched.status,
-  })
-  if (input.persist && options.store) steps.push("email_patched")
+  current = enriched
+  if (persist && store) {
+    current = await persistData(store, enriched)
+    current = await advanceStatus(store, current, LeadStatus.ENRICHED)
+    steps.push("email_patched")
+  }
 
   const scored = scoreLead(current)
-  current = await patchOrUpsert(input.persist, options.store, scored, {
-    leadScore: scored.leadScore,
-  })
-  if (input.persist && options.store) steps.push("score_patched")
+  current = scored
+  if (persist && store) {
+    current = await persistData(store, scored)
+    steps.push("score_patched")
+  }
 
   const drafted = draftOutreach(current)
   steps.push("drafted")
-  current = await patchOrUpsert(input.persist, options.store, drafted, {
-    draftEmail: drafted.draft,
-    status: drafted.status,
-  })
-  if (input.persist && options.store) steps.push("draft_patched")
-
-  if (input.persist && options.store) {
+  current = drafted
+  if (persist && store) {
+    current = await persistData(store, drafted)
+    current = await advanceStatus(store, current, LeadStatus.DRAFTED)
+    steps.push("draft_patched")
     steps.push("stored")
   }
 
   return { lead: current, steps }
 }
 
-interface PatchableStoreProvider extends StoreProvider {
-  patchLead?: (
-    id: string,
-    patch: {
-      researchSummary?: string
-      brief?: Lead["brief"]
-      email?: string
-      contact?: Lead["contact"]
-      leadScore?: Lead["leadScore"]
-      draftEmail?: Lead["draft"]
-      status?: Lead["status"]
-    },
-  ) => Promise<Lead>
+/**
+ * Data-only write: merge the pipeline's fields but keep the STORE's current
+ * status — status moves go exclusively through the state machine (A's rule).
+ */
+async function persistData(store: StoreProvider, lead: Lead): Promise<Lead> {
+  const fresh = await store.getLead(lead.id)
+  return store.upsertLead({ ...lead, status: fresh?.status ?? lead.status })
 }
 
-async function patchOrUpsert(
-  persist: boolean | undefined,
-  store: StoreProvider | undefined,
-  lead: Lead,
-  patch: Parameters<NonNullable<PatchableStoreProvider["patchLead"]>>[1],
-): Promise<Lead> {
-  if (!persist || !store) return lead
-
-  const patchable = store as PatchableStoreProvider
-  if (patchable.patchLead) return patchable.patchLead(lead.id, patch)
-
-  return store.upsertLead(lead)
+/** Advance via A's guarded transition; an already-past-it lead is a no-op. */
+async function advanceStatus(store: StoreProvider, lead: Lead, to: LeadStatus): Promise<Lead> {
+  try {
+    return await store.transition(lead.id, to)
+  } catch (err) {
+    if (err instanceof IllegalTransitionError || /illegal transition/i.test(String((err as Error)?.message))) {
+      return (await store.getLead(lead.id)) ?? lead
+    }
+    throw err
+  }
 }
 
 export const rocketRideToolDefinition = {
