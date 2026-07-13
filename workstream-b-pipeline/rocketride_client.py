@@ -8,8 +8,7 @@ from typing import Any
 from rocketride import RocketRideClient
 
 
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PIPELINE = ROOT / "pipeline.json"
+DEFAULT_PIPELINE = Path(__file__).resolve().parent / "pipeline.json"
 
 
 async def run_rocketride(args: argparse.Namespace) -> dict[str, Any]:

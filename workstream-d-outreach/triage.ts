@@ -14,8 +14,9 @@
  *   - MOCK path: a deterministic keyword classifier so the whole loop is testable
  *     with zero keys and the sandbox (which can't reach InsForge) stays green.
  *
- * Real LLM path = InsForge Model Gateway (OpenAI-compatible, routes via OpenRouter):
- *   POST {INSFORGE_PROJECT_URL}/v1/chat/completions   Bearer {INSFORGE_API_KEY}
+ * Real LLM path = InsForge AI gateway (live-verified 2026-07-13, see B's HANDOFF):
+ *   POST {INSFORGE_PROJECT_URL}/api/ai/chat/completion   Bearer {INSFORGE_API_KEY}
+ *   body { model, messages, temperature, maxTokens } → response { text, metadata }
  */
 
 import type {
@@ -50,7 +51,7 @@ export interface TriageResult {
 export interface TriageOptions {
   /** Force the deterministic path. Auto-on when no gateway/key is available. */
   mock?: boolean
-  /** Model Gateway base, e.g. https://<project>.insforge.app/v1 */
+  /** AI gateway base, e.g. https://<project>.insforge.app/api/ai */
   gatewayUrl?: string
   /** InsForge project API key (ik_...). */
   apiKey?: string
@@ -100,7 +101,7 @@ function resolveOptions(opts: TriageOptions = {}): ResolvedOptions {
   const gatewayUrl =
     opts.gatewayUrl ??
     (env("INSFORGE_PROJECT_URL")
-      ? `${env("INSFORGE_PROJECT_URL")!.replace(/\/+$/, "")}/v1`
+      ? `${env("INSFORGE_PROJECT_URL")!.replace(/\/+$/, "")}/api/ai`
       : undefined)
   const apiKey = opts.apiKey ?? env("INSFORGE_API_KEY")
   const fetchImpl = opts.fetchImpl ?? (globalThis.fetch as typeof fetch)
@@ -115,7 +116,8 @@ function resolveOptions(opts: TriageOptions = {}): ResolvedOptions {
     mock,
     gatewayUrl,
     apiKey,
-    model: opts.model ?? env("TRIAGE_MODEL") ?? "anthropic/claude-3.5-sonnet",
+    // Live-verified routable slug on the InsForge gateway (claude-3.5-sonnet 404s).
+    model: opts.model ?? env("TRIAGE_MODEL") ?? "anthropic/claude-sonnet-4",
     calLink: opts.calLink ?? env("CALCOM_LINK") ?? "https://cal.com/frontrun/intro",
     fromName: opts.fromName ?? env("FROM_NAME") ?? "Dana",
     fromCompany: opts.fromCompany ?? env("FROM_COMPANY") ?? "Frontrun Talent",
@@ -163,6 +165,9 @@ export async function triage(
     summary: result.summary,
     classification: result.classification,
     nextStepDraft: result.nextStepDraft,
+    // Honesty markers (PRD §10): persisted so the UI can show llm vs mock + why.
+    via: result.via,
+    reasoning: result.reasoning,
   }
 }
 
@@ -230,7 +235,7 @@ const gatewayAgent: TriageLLM = {
     ]
 
     const res = await options.fetchImpl(
-      `${options.gatewayUrl}/chat/completions`,
+      `${options.gatewayUrl}/chat/completion`,
       {
         method: "POST",
         headers: {
@@ -241,7 +246,7 @@ const gatewayAgent: TriageLLM = {
           model: options.model,
           messages,
           temperature: 0.3,
-          response_format: { type: "json_object" },
+          maxTokens: 1200,
         }),
       },
     )
@@ -251,7 +256,9 @@ const gatewayAgent: TriageLLM = {
     }
 
     const data: any = await res.json()
-    const content: string = data?.choices?.[0]?.message?.content ?? ""
+    // InsForge shape: { text, metadata }. Keep the OpenAI shape as a fallback so
+    // a config-swapped OpenAI-compatible gateway still parses.
+    const content: string = data?.text ?? data?.choices?.[0]?.message?.content ?? ""
     const parsed = parseModelJson(content)
     return normalizeResult(parsed, input, "llm")
   },

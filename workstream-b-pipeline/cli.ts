@@ -1,4 +1,5 @@
-import { createInsForgeStore } from "../workstream-a-backend/store"
+import "../workstream-a-backend/env" // load repo-root .env.local before anything reads process.env
+import { createStore } from "../workstream-a-backend/store"
 import { readPipelineEnv } from "./env"
 import { runRocketRidePipeline } from "./rocketride"
 
@@ -14,7 +15,11 @@ async function main(): Promise<void> {
   const stdinArgs = args.jsonStdin ? await readJsonStdin() : {}
   const input = { ...args, ...stdinArgs }
   const env = readPipelineEnv()
-  const store = input.persist ? createInsForgeStore() : undefined
+  const store = input.persist ? createStore() : undefined
+  if (store) {
+    // Make it impossible to think you persisted to InsForge when keys were missing.
+    console.error(`[track-b] persisting via ${store.constructor.name}`)
+  }
   const result = await runRocketRidePipeline(
     {
       domain: input.domain,
@@ -84,10 +89,12 @@ async function readJsonStdin(): Promise<Partial<ReturnType<typeof parseArgs>>> {
     include_funds?: boolean
   }
 
+  // Only pass through keys the JSON actually set — stdin must not clobber CLI flags.
+  const includeFunds = parsed.includeFunds ?? parsed.include_funds
   return {
-    domain: parsed.domain,
-    persist: parsed.persist ?? false,
-    includeFunds: parsed.includeFunds ?? parsed.include_funds ?? false,
+    ...(parsed.domain !== undefined ? { domain: parsed.domain } : {}),
+    ...(parsed.persist !== undefined ? { persist: parsed.persist } : {}),
+    ...(includeFunds !== undefined ? { includeFunds } : {}),
   }
 }
 

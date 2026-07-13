@@ -107,6 +107,18 @@ export interface ReplyEvent {
   classification?: ReplyClassification
   /** The next-step draft the triage agent produced. */
   nextStepDraft?: EmailDraft
+  /** How the classification was made — surfaced so we never fake "AI" on screen (PRD §10). */
+  via?: "llm" | "mock"
+  /** One line of why, for the UI reasoning drawer. */
+  reasoning?: string
+}
+
+/** Lead-quality score (workstream B). Advisory only — not part of the state machine. */
+export interface LeadScore {
+  score: number // 0–100
+  tier: "hot" | "warm" | "cold"
+  reasons: string[]
+  createdAt: string // ISO 8601
 }
 
 /** Outreach delivery telemetry (Resend webhooks, workstream D). */
@@ -137,6 +149,9 @@ export interface Lead {
 
   // --- Draft (B / D) ---
   draft?: EmailDraft
+
+  // --- Scoring (B) ---
+  leadScore?: LeadScore
 
   // --- Outreach + reply loop (D) ---
   outreach?: OutreachStatus

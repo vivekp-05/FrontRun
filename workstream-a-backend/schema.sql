@@ -23,6 +23,9 @@ create table if not exists leads (
   outreach    jsonb,                               -- OutreachStatus
   replies     jsonb default '[]'::jsonb,           -- ReplyEvent[]
 
+  -- scoring (B)
+  lead_score  jsonb,                               -- LeadScore
+
   -- bookkeeping (A)
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
@@ -42,3 +45,5 @@ select
   count(*) filter (where jsonb_array_length(coalesce(replies,'[]'::jsonb)) > 0) as replied
 from leads
 group by status;
+
+alter table leads add column if not exists lead_score jsonb;

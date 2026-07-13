@@ -166,9 +166,18 @@ export async function runOutreach(
   opts: SendOptions = {},
 ): Promise<Array<{ leadId: string; status?: OutreachStatus; error?: string }>> {
   const provider = createSendProvider(opts)
+  // PRD §6 hard rule: sends route ONLY to the controlled demo inboxes. Real
+  // (isDemo:false) leads are refused unless explicitly overridden.
+  const allowReal = env("ALLOW_REAL_SEND") === "1"
   return Promise.all(
     leads.map(async (lead) => {
       try {
+        if (!lead.isDemo && !allowReal) {
+          return {
+            leadId: lead.id,
+            error: "refused: not a demo lead (PRD §6 — set ALLOW_REAL_SEND=1 to override)",
+          }
+        }
         const status = await provider.send(lead)
         const fresh = (await store.getLead(lead.id)) ?? lead
         await store.upsertLead({

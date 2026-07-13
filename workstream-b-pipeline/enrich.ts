@@ -82,7 +82,8 @@ export class HunterResolveProvider implements ResolveEmailProvider {
 
   async resolveEmail(name: string, domain: string): Promise<Pick<Contact, "email" | "source">> {
     if (!this.env.HUNTER_API_KEY) {
-      return { email: guessEmail(name, domain), source: "manual" }
+      // Honesty rule (PRD §14): no key → no email. Never fabricate an address.
+      return { email: undefined, source: "manual" }
     }
 
     const [firstName, ...rest] = name.split(/\s+/)
@@ -111,11 +112,13 @@ export class ReoonVerifyProvider implements VerifyProvider {
   }
 
   async verify(email: string): Promise<EmailConfidence> {
-    if (!this.env.REOON_API_KEY) return email.includes("@example.") ? "low" : "medium"
+    // Honesty rule (PRD §14): no verifier ran → the email stays "unverified".
+    if (!this.env.REOON_API_KEY) return "unverified"
 
     const url = new URL("https://emailverifier.reoon.com/api/v1/verify")
     url.searchParams.set("email", email)
     url.searchParams.set("key", this.env.REOON_API_KEY)
+    url.searchParams.set("mode", "power")
 
     const response = await fetch(url)
     if (!response.ok) {
@@ -123,7 +126,7 @@ export class ReoonVerifyProvider implements VerifyProvider {
     }
 
     const payload = (await response.json()) as { status?: string; is_safe_to_send?: boolean }
-    if (payload.is_safe_to_send || payload.status === "safe") return "high"
+    if (payload.is_safe_to_send || payload.status === "valid" || payload.status === "safe") return "high"
     if (payload.status === "catch_all" || payload.status === "unknown") return "medium"
     return "low"
   }
@@ -218,10 +221,4 @@ function demoContacts(companyName: string): Partial<Contact>[] {
 
 function inferDomain(companyName: string): string {
   return `${companyName.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 28) || "company"}.com`
-}
-
-function guessEmail(name: string, domain: string): string {
-  const parts = name.toLowerCase().replace(/[^a-z\s]/g, "").trim().split(/\s+/).filter(Boolean)
-  const local = parts.length >= 2 ? `${parts[0]}.${parts[parts.length - 1]}` : parts[0] ?? "founder"
-  return `${local}@${domain}`
 }

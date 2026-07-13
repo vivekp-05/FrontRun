@@ -73,16 +73,10 @@ npm run track-b:run
 
 The runner loads `.env.local`, polls EDGAR, researches with You.com MCP/API, enriches, verifies confidence, and prints the drafted lead JSON. It does not persist unless you pass `-- --persist`; use `-- --include-funds` to allow fund/LP filings in the feed.
 
-With `-- --persist`, Track B writes progressively so the frontend can render immediately:
-
-```text
-DETECTED
-POST Lead
-PATCH researchSummary
-PATCH email
-PATCH leadScore
-PATCH draftEmail
-```
+With `-- --persist`, Track B writes progressively so the frontend can render immediately.
+Data fields are merged via `upsertLead` (status untouched); status advances go through
+A's guarded `transition()` — `DETECTED → ENRICHED → DRAFTED`. A lead already past
+DETECTED is never clobbered (the run returns it with a `resumed` step).
 
 ## RocketRide
 
@@ -93,4 +87,4 @@ pip install -r workstream-b-pipeline/requirements.txt
 npm run track-b:rocketride
 ```
 
-`rocketride_client.py` registers the root `pipeline.json`, sends a JSON payload into RocketRide, and prints the token, response, and task status. The pipeline entrypoint points back to `npm run track-b:run -- --json-stdin`, so RocketRide invokes the same verified Track B implementation.
+`rocketride_client.py` registers `workstream-b-pipeline/pipeline.json`, sends a JSON payload into RocketRide, and prints the token, response, and task status. The pipeline entrypoint points back to `npm run track-b:run -- --json-stdin`, so RocketRide invokes the same verified Track B implementation.

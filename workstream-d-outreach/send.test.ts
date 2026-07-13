@@ -92,6 +92,7 @@ async function main() {
   }) as unknown as typeof fetch
 
   const provider = createSendProvider({
+    mock: false, // pin: an ambient MOCK_SEND=1 must not silently skip the real path
     apiKey: "re_test_key",
     fromEmail: "dana@frontrun.dev",
     fromName: "Dana",
@@ -106,6 +107,7 @@ async function main() {
   check("real path from includes sender", String(body.from).includes("dana@frontrun.dev"))
   check("real path to is the contact", body.to?.[0] === "alex@northwindrobotics.com")
   check("real path tags the lead id", body.tags?.[0]?.value === "lead_demo_1")
+  check("real path plus-addresses reply_to", body.reply_to === "dana+lead_demo_1@frontrun.dev")
   check("real path returns resend id", realStatus.messageId === "resend_abc123")
 
   console.log(

@@ -47,6 +47,7 @@ export class MemStore implements StoreProvider {
   async transition(id: string, to: LeadStatus): Promise<Lead> {
     const lead = this.leads.get(id)
     if (!lead) throw new Error(`no lead ${id}`)
+    if (lead.status === to) return lead // idempotent no-op — same semantics as A's store
     const allowed = LEAD_TRANSITIONS[lead.status] ?? []
     if (!allowed.includes(to)) {
       throw new TransitionError(lead.status, to, id)
