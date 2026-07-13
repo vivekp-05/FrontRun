@@ -54,3 +54,7 @@ coverage/
 .roo
 .trae
 .windsurf
+# InsForge (holds project key) + local secrets
+.insforge
+.env.local
+.env*.local
