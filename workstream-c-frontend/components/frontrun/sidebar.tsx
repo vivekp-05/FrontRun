@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Radar, Columns3, Rows3, ChartNoAxesColumn, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useFrontrunStore } from "@/lib/ui/store"
 import { Wordmark } from "./signature"
 import { LiveDot } from "./live-dot"
 
@@ -67,6 +68,7 @@ function NavItem({ entry, active }: { entry: NavEntry; active: boolean }) {
 
 export function SidebarNav() {
   const pathname = usePathname()
+  const live = useFrontrunStore((s) => s.live)
   return (
     <div className="flex h-full flex-col gap-6 p-4">
       <div className="px-1.5 pt-1">
@@ -100,11 +102,16 @@ export function SidebarNav() {
             </div>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-xs text-fg-muted">
-                <LiveDot tone="signal" />
-                Demo mode
+                <LiveDot tone={live ? "success" : "signal"} live={live} />
+                {live ? "Track A backend" : "Demo mode"}
               </span>
-              <span className="font-mono text-[10px] uppercase tracking-wide text-fg-subtle">
-                on
+              <span
+                className={cn(
+                  "font-mono text-[10px] uppercase tracking-wide",
+                  live ? "text-success" : "text-fg-subtle",
+                )}
+              >
+                {live ? "live" : "on"}
               </span>
             </div>
           </div>

@@ -4,9 +4,11 @@ import { useEffect } from "react"
 import { useFrontrunStore } from "@/lib/ui/store"
 
 /**
- * On mount: try the real backend (A's /api/leads). If real leads come back, go
- * LIVE — poll every few seconds to reflect state changes. If the backend is empty
- * or unreachable, fall back to the client-side simulation so the demo never dies.
+ * Data source controller. Polls A's real backend (/api/leads) on an interval.
+ * - When real leads come back → go LIVE (and stop the sim if it was running).
+ * - Until then → run the client-side simulation so the dashboard is never empty.
+ * This keeps retrying, so a cold/slow backend on first load no longer pins the
+ * app in demo mode forever — it upgrades to live as soon as data is reachable.
  */
 export function SimulationController() {
   const hydrate = useFrontrunStore((s) => s.hydrateFromBackend)
@@ -15,21 +17,30 @@ export function SimulationController() {
 
   useEffect(() => {
     let cancelled = false
-    let poll: ReturnType<typeof setInterval> | null = null
+    let simming = false
+    let isLive = false
 
-    void (async () => {
-      const liveOk = await hydrate()
+    const tick = async () => {
+      const ok = await hydrate()
       if (cancelled) return
-      if (liveOk) {
-        poll = setInterval(() => void hydrate(), 4000) // real backend → poll
-      } else {
-        start() // no real data → simulation fallback
+      if (ok) {
+        isLive = true
+        if (simming) {
+          stop() // real data arrived — drop the simulation
+          simming = false
+        }
+      } else if (!isLive && !simming) {
+        start() // backend not reachable yet — simulate in the meantime
+        simming = true
       }
-    })()
+    }
+
+    void tick() // immediate attempt
+    const poll = setInterval(() => void tick(), 4000)
 
     return () => {
       cancelled = true
-      if (poll) clearInterval(poll)
+      clearInterval(poll)
       stop()
     }
   }, [hydrate, start, stop])

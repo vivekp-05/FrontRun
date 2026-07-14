@@ -36,6 +36,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: str
 export default function Page() {
   const leads = useFrontrunStore((s) => s.leads)
   const lastChangedId = useFrontrunStore((s) => s.lastChangedId)
+  const live = useFrontrunStore((s) => s.live)
   const now = useNow(1000)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = leads.find((l) => l.id === selectedId) ?? null
@@ -113,8 +114,9 @@ export default function Page() {
       <LeadDetailSheet lead={selected} onClose={() => setSelectedId(null)} />
 
       <p className="font-mono text-[11px] text-fg-faint">
-        Mock data · no backend · transitions simulated client-side. Swaps to Track A&apos;s
-        status API at checkpoint 1.
+        {live
+          ? "Live · Track A backend on InsForge · polling /api/leads. Outreach, triage & booking run for real."
+          : "Mock data · no backend · transitions simulated client-side. Swaps to Track A’s status API at checkpoint 1."}
       </p>
     </div>
   )
