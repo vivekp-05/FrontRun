@@ -259,6 +259,13 @@ export const useFrontrunStore = create<FrontrunState>((set, get) => ({
       const data = (await res.json()) as { leads?: Lead[] }
       const leads = Array.isArray(data.leads) ? data.leads : []
       if (leads.length === 0) return false
+      // Only re-set state when the backend actually changed — otherwise the 4s
+      // poll would replace the array every tick and make the funnel re-animate.
+      const sig = (ls: Lead[]) =>
+        ls.map((l) => `${l.id}:${l.status}:${l.updatedAt}`).sort().join("|")
+      const prev = get()
+      const next = sig(leads)
+      if (prev.live && sig(prev.leads) === next) return true
       set({
         leads,
         live: true,
