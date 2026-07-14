@@ -1,4 +1,4 @@
-import { Reveal } from "./reveal"
+import { Reveal, RevealGroup, RevealItem } from "./reveal"
 
 /** One stage in the pipeline flow. */
 type Stage = {
@@ -55,16 +55,16 @@ function Lane({ label, tag, stages }: { label: string; tag: string; stages: Stag
         <span className="h-px flex-1 bg-line" />
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-faint">{tag}</span>
       </div>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+      <RevealGroup className="flex flex-col gap-2 sm:flex-row sm:items-stretch" stagger={0.1}>
         {stages.map((s, i) => (
-          <div key={s.n} className="flex flex-1 items-center gap-2">
+          <RevealItem key={s.n} className="flex flex-1 items-center gap-2">
             <StageCard s={s} />
             {i < stages.length - 1 && (
               <span aria-hidden className="hidden shrink-0 text-fg-faint sm:block">→</span>
             )}
-          </div>
+          </RevealItem>
         ))}
-      </div>
+      </RevealGroup>
     </div>
   )
 }
@@ -87,13 +87,11 @@ export function HowItRuns() {
           </p>
         </Reveal>
 
-        <Reveal delay={0.05}>
-          <div className="mt-12 flex flex-col gap-6">
-            <Lane label="Signal & enrichment" tag="detect → draft" stages={LANE_A} />
-            <div className="flex justify-center text-fg-faint" aria-hidden>↓</div>
-            <Lane label="Outreach & reply loop" tag="send → book" stages={LANE_B} />
-          </div>
-        </Reveal>
+        <div className="mt-12 flex flex-col gap-6">
+          <Lane label="Signal & enrichment" tag="detect → draft" stages={LANE_A} />
+          <div className="flex justify-center text-fg-faint" aria-hidden>↓</div>
+          <Lane label="Outreach & reply loop" tag="send → book" stages={LANE_B} />
+        </div>
 
         {/* Foundation */}
         <Reveal delay={0.1}>

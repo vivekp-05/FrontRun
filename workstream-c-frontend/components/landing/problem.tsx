@@ -30,7 +30,9 @@ export function Problem() {
         <Reveal>
           <p className="kicker">02 / The problem</p>
           <h2 className="mt-5 font-display text-3xl font-semibold tracking-tight text-fg md:text-4xl">
-            By the press release, it&apos;s over.
+            First to the inbox
+            <br />
+            wins the deal.
           </h2>
           <p className="mt-6 max-w-md leading-relaxed text-fg-muted">
             A company that just raised a Series A will hire 20–50 people next

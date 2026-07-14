@@ -1,13 +1,19 @@
 "use client"
 
+import { useRef } from "react"
 import Link from "next/link"
-import { motion, useReducedMotion } from "framer-motion"
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "framer-motion"
 import { ArrowRight } from "lucide-react"
 import { Wordmark } from "@/components/frontrun/signature"
 
 const EASE_SIGNAL = [0.2, 0, 0, 1] as const
 
-/** The live-signal readout that plays behind/beside the hero headline. */
+/** The live-signal readout that plays beside the hero headline. */
 const SIGNAL_ROWS = [
   { label: "FORM D FILED", value: "SEC EDGAR · same day", live: true },
   { label: "COMPANY", value: "Acme Robotics · Series A" },
@@ -19,34 +25,49 @@ const SIGNAL_ROWS = [
 
 export function Hero() {
   const reduce = useReducedMotion()
+  const ref = useRef<HTMLElement>(null)
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start start", "end start"],
+  })
+  // Parallax: content drifts up + fades, the readout drifts faster — depth on scroll.
+  const contentY = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : -60])
+  const contentOpacity = useTransform(scrollYProgress, [0, 0.75], [1, reduce ? 1 : 0])
+  const readoutY = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : -140])
 
   const enter = (delay: number) =>
     reduce
       ? {}
       : {
-          initial: { opacity: 0, y: 20 },
+          initial: { opacity: 0, y: 24 },
           animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.6, delay, ease: EASE_SIGNAL },
+          transition: { duration: 0.7, delay, ease: EASE_SIGNAL },
         }
 
   return (
-    <header className="relative overflow-hidden border-b border-line">
-      {/* Signal-pulse background: faint hairline grid + one slow scan line. */}
+    <header ref={ref} className="relative overflow-hidden border-b border-line">
+      {/* Signal-pulse background: hairline grid + a slow scan line. */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div
           className="absolute inset-0 opacity-[0.35]"
           style={{
-            backgroundImage:
-              "linear-gradient(to right, var(--line) 1px, transparent 1px)",
+            backgroundImage: "linear-gradient(to right, var(--line) 1px, transparent 1px)",
             backgroundSize: "160px 100%",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.5]"
+          style={{
+            background:
+              "radial-gradient(60% 50% at 50% 0%, color-mix(in oklab, var(--signal) 10%, transparent) 0%, transparent 70%)",
           }}
         />
         {!reduce && (
           <motion.div
             className="absolute inset-y-0 w-px bg-signal/25"
-            initial={{ left: "0%" }}
-            animate={{ left: "100%" }}
-            transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
+            initial={{ left: "-2%" }}
+            animate={{ left: "102%" }}
+            transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
           />
         )}
       </div>
@@ -62,49 +83,61 @@ export function Hero() {
         </Link>
       </div>
 
-      <div className="relative mx-auto grid w-full max-w-6xl gap-14 px-6 pb-24 pt-20 md:grid-cols-[1fr_auto] md:gap-20 md:pb-32 md:pt-28">
+      <div className="relative mx-auto grid w-full max-w-6xl gap-14 px-6 pb-28 pt-20 md:grid-cols-[1.15fr_auto] md:gap-20 md:pb-40 md:pt-28">
         {/* Headline block */}
-        <div>
-          <motion.p className="kicker" {...enter(0)}>
+        <motion.div style={{ y: contentY, opacity: contentOpacity }}>
+          <motion.p className="kicker flex items-center gap-2" {...enter(0)}>
+            <span className="relative flex size-1.5">
+              {!reduce && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal opacity-70" />
+              )}
+              <span className="relative inline-flex size-1.5 rounded-full bg-signal" />
+            </span>
             01 / Autonomous SDR
           </motion.p>
+
           <motion.h1
-            className="mt-6 font-display text-5xl font-semibold leading-[1.02] tracking-tight text-fg md:text-7xl"
+            className="mt-6 font-display text-[2.75rem] font-semibold leading-[1.0] tracking-tight text-fg sm:text-6xl md:text-[5.25rem]"
             {...enter(0.08)}
           >
-            Reach them
+            By the time the press
             <br />
-            first.
-            <span
-              aria-hidden
-              className="ml-3 inline-block h-[0.14em] w-[0.32em] rounded-[2px] bg-signal align-baseline"
-            />
+            releases,{" "}
+            <span className="text-fg-subtle">it&apos;s too late.</span>
           </motion.h1>
+
           <motion.p
-            className="mt-7 max-w-md text-base leading-relaxed text-fg-muted md:text-lg"
-            {...enter(0.16)}
+            className="mt-8 max-w-lg text-base leading-relaxed text-fg-muted md:text-lg"
+            {...enter(0.18)}
           >
-            Frontrun detects the raise the day it files — then researches,
-            drafts, sends, and books. End to end.
+            A company files its Form D and starts hiring 20 people. Frontrun
+            catches it <span className="text-fg">that day</span> — researches the
+            company, finds the founder, drafts the email, and sends it. You&apos;re
+            in the inbox before anyone else knows there was a raise.
           </motion.p>
-          <motion.div className="mt-10" {...enter(0.24)}>
+
+          <motion.div className="mt-10 flex flex-wrap items-center gap-4" {...enter(0.28)}>
             <Link
               href="/gate"
-              className="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-5 font-medium text-signal-foreground transition-colors duration-[var(--dur-fast)] hover:bg-signal-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+              className="group inline-flex h-12 items-center gap-2 rounded-md bg-signal px-6 font-medium text-signal-foreground transition-all duration-[var(--dur-fast)] hover:bg-signal-strong hover:gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
             >
               Watch the live demo
-              <ArrowRight className="size-4" />
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
+            <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-fg-faint">
+              Reach them first.
+            </span>
           </motion.div>
-        </div>
+        </motion.div>
 
-        {/* Live signal readout */}
+        {/* Live signal readout — parallax */}
         <motion.aside
           className="hidden self-center md:block"
-          {...enter(0.3)}
+          style={{ y: readoutY }}
+          {...enter(0.34)}
           aria-label="Example detection signal"
         >
-          <div className="w-72 border-l border-line pl-6">
+          <div className="w-72 rounded-lg border border-line bg-surface/60 p-5 backdrop-blur-sm">
             <div className="mb-4 flex items-center gap-2">
               <span className="relative flex size-2">
                 {!reduce && (
@@ -117,18 +150,27 @@ export function Hero() {
               </span>
             </div>
             <dl className="space-y-3">
-              {SIGNAL_ROWS.map((row) => (
-                <div
+              {SIGNAL_ROWS.map((row, i) => (
+                <motion.div
                   key={row.label}
-                  className="flex items-baseline justify-between gap-4 border-b border-line pb-2.5"
+                  className="flex items-baseline justify-between gap-4 border-b border-line pb-2.5 last:border-0"
+                  initial={reduce ? {} : { opacity: 0, x: 12 }}
+                  animate={reduce ? {} : { opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.5 + i * 0.08, ease: EASE_SIGNAL }}
                 >
                   <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-subtle">
                     {row.label}
                   </dt>
-                  <dd className="font-mono text-xs text-fg-muted">
+                  <dd
+                    className={
+                      row.live
+                        ? "font-mono text-xs text-signal"
+                        : "font-mono text-xs text-fg-muted"
+                    }
+                  >
                     {row.value}
                   </dd>
-                </div>
+                </motion.div>
               ))}
             </dl>
           </div>
