@@ -6,9 +6,9 @@ import { HowItRuns } from "@/components/landing/how-it-runs"
 import { Close } from "@/components/landing/close"
 
 export const metadata: Metadata = {
-  title: "Frontrun — Reach them first.",
+  title: "FrontRun — Reach them first.",
   description:
-    "By the time the press releases, it's too late. Frontrun detects the raise the day it files — then researches, drafts, sends, and books. End to end.",
+    "By the time the press releases, it's too late. FrontRun detects the raise the day it files — then researches, drafts, sends, and books. End to end.",
 }
 
 export default function PitchPage() {

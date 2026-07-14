@@ -16,7 +16,7 @@ export function ReplyThread({ lead }: { lead: Lead }) {
   if (replies.length === 0) {
     return (
       <p className="rounded-md border border-dashed border-line bg-inset/50 p-3 text-xs text-fg-subtle">
-        No replies yet. Frontrun triages inbound replies the moment they land.
+        No replies yet. FrontRun triages inbound replies the moment they land.
       </p>
     )
   }
@@ -56,7 +56,7 @@ export function ReplyThread({ lead }: { lead: Lead }) {
               </span>
               <EmailBlock
                 email={reply.nextStepDraft}
-                from="Frontrun · Dana"
+                from="FrontRun · Dana"
                 to={reply.from}
                 accent
               />

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils"
 
 /**
- * Frontrun wordmark — type-led SaaS identity. The one brand device is a small
+ * FrontRun wordmark — type-led SaaS identity. The one brand device is a small
  * Signal-Cyan accent tick after the name (the Padzy accent tick). No icon mark.
  */
 export function Wordmark({
@@ -29,7 +29,7 @@ export function Wordmark({
           textSize,
         )}
       >
-        Frontrun
+        FrontRun
         <span aria-hidden className={cn("rounded-[1px] bg-signal", tick)} />
       </span>
     </div>

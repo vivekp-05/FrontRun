@@ -6,7 +6,7 @@ const STEPS = [
     n: "01",
     icon: FileText,
     title: "Detect the raise",
-    body: "SEC Form D filings hit EDGAR the day a company raises. Frontrun catches them same-day — before the press does.",
+    body: "SEC Form D filings hit EDGAR the day a company raises. FrontRun catches them same-day — before the press does.",
     data: "FORM D · T+0",
   },
   {

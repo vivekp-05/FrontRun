@@ -176,7 +176,7 @@ export function LeadDetail({ lead }: { lead: Lead }) {
         <SectionHeader n="03" label="Outreach draft" />
         {draft ? (
           <>
-            <EmailBlock email={draft} from="Frontrun · Dana" to={contact?.email} />
+            <EmailBlock email={draft} from="FrontRun · Dana" to={contact?.email} />
             <DeliveryTimeline lead={lead} />
           </>
         ) : (

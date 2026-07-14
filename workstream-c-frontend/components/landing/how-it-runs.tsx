@@ -21,7 +21,7 @@ const STAGES: Stage[] = [
     title: "Detect",
     sponsor: "SEC EDGAR",
     detail:
-      "A Form D filing hits EDGAR the day a company raises. Frontrun catches it same-day — with the real exec names and amount, before the press runs.",
+      "A Form D filing hits EDGAR the day a company raises. FrontRun catches it same-day — with the real exec names and amount, before the press runs.",
     live: true,
   },
   {

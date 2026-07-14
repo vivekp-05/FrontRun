@@ -24,19 +24,19 @@ const dmMono = DM_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
-  title: "Frontrun — Autonomous SDR",
+  title: "FrontRun — Autonomous SDR",
   description:
-    "Frontrun detects the moment a company raises funding, researches it, and runs the entire outreach conversation as an AI employee.",
+    "FrontRun detects the moment a company raises funding, researches it, and runs the entire outreach conversation as an AI employee.",
   openGraph: {
-    title: "Frontrun — Autonomous SDR",
+    title: "FrontRun — Autonomous SDR",
     description:
-      "Reach them first. Frontrun catches the raise the day it files — then researches, drafts, sends, and books.",
+      "Reach them first. FrontRun catches the raise the day it files — then researches, drafts, sends, and books.",
     images: ["/brand/og-card.png"],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Frontrun — Autonomous SDR",
+    title: "FrontRun — Autonomous SDR",
     description: "Reach them first.",
     images: ["/brand/og-card.png"],
   },

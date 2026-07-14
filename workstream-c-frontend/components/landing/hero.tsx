@@ -122,10 +122,10 @@ export function Hero() {
             className="mt-8 max-w-lg text-base leading-relaxed text-fg-muted md:text-lg"
             {...enter(0.18)}
           >
-            A company files its Form D and starts hiring 20 people. Frontrun
-            catches it <span className="text-fg">that day</span> — researches the
-            company, finds the founder, drafts the email, and sends it. You&apos;re
-            in the inbox before anyone else knows there was a raise.
+            Ten agencies find out from the press release. You find out from
+            the filing. FrontRun detects the raise, researches it, and lands a
+            personalized email <span className="text-fg">the same day</span> —
+            before the competition knows the company exists.
           </motion.p>
 
           <motion.div className="mt-10 flex flex-wrap items-center gap-4" {...enter(0.28)}>

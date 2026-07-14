@@ -62,7 +62,7 @@ export default function GatePage() {
             This dashboard is private.
           </h1>
           <p className="mt-3 text-sm leading-relaxed text-fg-muted">
-            The live Frontrun dashboard is available by request. Have an access
+            The live FrontRun dashboard is available by request. Have an access
             key? Enter it below. Otherwise, reach out and I&apos;ll get you in.
           </p>
 

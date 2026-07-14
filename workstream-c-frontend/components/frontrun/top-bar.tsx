@@ -55,7 +55,7 @@ function LiveToggle() {
 
 export function TopBar() {
   const pathname = usePathname()
-  const section = SECTIONS[pathname] ?? { n: "00", label: "Frontrun" }
+  const section = SECTIONS[pathname] ?? { n: "00", label: "FrontRun" }
 
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-background/85 px-4 backdrop-blur-md sm:px-6">
