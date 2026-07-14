@@ -2,16 +2,13 @@ import type { Metadata } from "next"
 import { ScrollProgress } from "@/components/landing/scroll-progress"
 import { Hero } from "@/components/landing/hero"
 import { Problem } from "@/components/landing/problem"
-import { Solution } from "@/components/landing/solution"
 import { HowItRuns } from "@/components/landing/how-it-runs"
-import { Stack } from "@/components/landing/stack"
-import { SponsorBelt } from "@/components/landing/sponsor-belt"
 import { Close } from "@/components/landing/close"
 
 export const metadata: Metadata = {
   title: "Frontrun — Reach them first.",
   description:
-    "Frontrun detects the raise the day it files — then researches, drafts, sends, and books. End to end.",
+    "By the time the press releases, it's too late. Frontrun detects the raise the day it files — then researches, drafts, sends, and books. End to end.",
 }
 
 export default function PitchPage() {
@@ -20,10 +17,7 @@ export default function PitchPage() {
       <ScrollProgress />
       <Hero />
       <Problem />
-      <Solution />
       <HowItRuns />
-      <Stack />
-      <SponsorBelt />
       <Close />
     </div>
   )

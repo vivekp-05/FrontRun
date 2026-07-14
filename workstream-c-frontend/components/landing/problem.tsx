@@ -26,7 +26,7 @@ const TIMELINE = [
 export function Problem() {
   return (
     <section className="border-b border-line">
-      <div className="mx-auto grid w-full max-w-6xl gap-12 px-6 py-24 md:grid-cols-2 md:gap-20">
+      <div className="mx-auto grid w-full max-w-6xl gap-12 px-6 py-20 md:grid-cols-2 md:gap-20 md:py-24">
         <Reveal>
           <p className="kicker">02 / The problem</p>
           <h2 className="mt-5 font-display text-3xl font-semibold tracking-tight text-fg md:text-4xl">

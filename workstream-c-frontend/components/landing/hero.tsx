@@ -209,6 +209,25 @@ export function Hero() {
           </div>
         </motion.aside>
       </div>
+
+      {/* Scroll cue */}
+      <motion.div
+        className="absolute inset-x-0 bottom-6 flex justify-center"
+        initial={reduce ? {} : { opacity: 0 }}
+        animate={reduce ? {} : { opacity: 1 }}
+        transition={{ delay: 1, duration: 0.8 }}
+      >
+        <div className="flex flex-col items-center gap-1.5 text-fg-faint">
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em]">Scroll</span>
+          <motion.span
+            aria-hidden
+            animate={reduce ? {} : { y: [0, 5, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          >
+            ↓
+          </motion.span>
+        </div>
+      </motion.div>
     </header>
   )
 }
