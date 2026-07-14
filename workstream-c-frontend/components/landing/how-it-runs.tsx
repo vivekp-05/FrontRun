@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { AnimatePresence, motion } from "framer-motion"
+import { useEffect, useState } from "react"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { Reveal } from "./reveal"
 import { cn } from "@/lib/utils"
 
@@ -12,6 +12,8 @@ type Stage = {
   detail: string
   live?: boolean
 }
+
+const STEP_MS = 2800
 
 const STAGES: Stage[] = [
   {
@@ -68,8 +70,20 @@ const STAGES: Stage[] = [
 ]
 
 export function HowItRuns() {
+  const reduce = useReducedMotion()
   const [active, setActive] = useState(0)
+  const [paused, setPaused] = useState(false)
   const s = STAGES[active]
+
+  // Auto-advance through every step; pauses on hover/focus so you can explore.
+  useEffect(() => {
+    if (reduce || paused) return
+    const id = setInterval(
+      () => setActive((a) => (a + 1) % STAGES.length),
+      STEP_MS,
+    )
+    return () => clearInterval(id)
+  }, [reduce, paused])
 
   return (
     <section className="border-t border-line bg-background">
@@ -83,78 +97,100 @@ export function HowItRuns() {
           </h2>
           <p className="mt-5 max-w-lg leading-relaxed text-fg-muted">
             One AI employee runs the whole conversation — every stage a real
-            integration on live data.{" "}
-            <span className="text-fg">Hover a step to see what happens.</span>
+            integration on live data. It plays through on its own;{" "}
+            <span className="text-fg">hover to explore.</span>
           </p>
         </Reveal>
 
-        {/* stage chips */}
-        <Reveal delay={0.05}>
-          <div className="mt-12 flex flex-wrap items-center gap-2">
-            {STAGES.map((st, i) => (
-              <div key={st.n} className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onMouseEnter={() => setActive(i)}
-                  onFocus={() => setActive(i)}
-                  onClick={() => setActive(i)}
-                  aria-pressed={i === active}
-                  className={cn(
-                    "flex items-center gap-2 rounded-md border px-3 py-2 transition-colors",
-                    i === active
-                      ? "border-signal/50 bg-signal/10"
-                      : "border-line bg-surface hover:border-line-strong",
-                  )}
-                >
-                  <span className="font-mono text-[10px] text-fg-faint">{st.n}</span>
-                  <span
+        {/* interactive + auto-advancing pipeline */}
+        <div
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
+          <Reveal delay={0.05}>
+            <div className="mt-12 flex flex-wrap items-center gap-2">
+              {STAGES.map((st, i) => (
+                <div key={st.n} className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onMouseEnter={() => setActive(i)}
+                    onFocus={() => {
+                      setPaused(true)
+                      setActive(i)
+                    }}
+                    onClick={() => {
+                      setPaused(true)
+                      setActive(i)
+                    }}
+                    aria-pressed={i === active}
                     className={cn(
-                      "text-sm font-medium",
-                      i === active ? "text-fg" : "text-fg-muted",
+                      "flex items-center gap-2 rounded-md border px-3 py-2 transition-colors",
+                      i === active
+                        ? "border-signal/50 bg-signal/10"
+                        : "border-line bg-surface hover:border-line-strong",
                     )}
                   >
-                    {st.title}
-                  </span>
-                  {st.live && <span className="size-1.5 rounded-full bg-signal" />}
-                </button>
-                {i < STAGES.length - 1 && (
-                  <span aria-hidden className="hidden text-fg-faint sm:inline">
-                    →
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </Reveal>
+                    <span className="font-mono text-[10px] text-fg-faint">{st.n}</span>
+                    <span
+                      className={cn(
+                        "text-sm font-medium",
+                        i === active ? "text-fg" : "text-fg-muted",
+                      )}
+                    >
+                      {st.title}
+                    </span>
+                    {st.live && <span className="size-1.5 rounded-full bg-signal" />}
+                  </button>
+                  {i < STAGES.length - 1 && (
+                    <span aria-hidden className="hidden text-fg-faint sm:inline">
+                      →
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Reveal>
 
-        {/* peek panel */}
-        <div className="mt-6 min-h-[10.5rem] rounded-xl border border-line bg-surface p-6 md:p-8">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={active}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25, ease: [0.2, 0, 0, 1] }}
-            >
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="font-mono text-xs text-fg-faint">{s.n}</span>
-                <span className="inline-block rounded-md border border-line bg-inset px-2 py-1 font-mono text-[10px] tracking-wide text-fg-subtle">
-                  {s.sponsor}
-                </span>
-                {s.live && (
-                  <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-signal">
-                    <span className="size-1.5 rounded-full bg-signal" />
-                    live
+          {/* peek panel */}
+          <div className="mt-6 min-h-[10.5rem] overflow-hidden rounded-xl border border-line bg-surface p-6 md:p-8">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25, ease: [0.2, 0, 0, 1] }}
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-mono text-xs text-fg-faint">{s.n}</span>
+                  <span className="inline-block rounded-md border border-line bg-inset px-2 py-1 font-mono text-[10px] tracking-wide text-fg-subtle">
+                    {s.sponsor}
                   </span>
-                )}
-              </div>
-              <h3 className="mt-4 font-display text-2xl font-semibold tracking-tight text-fg">
-                {s.title}
-              </h3>
-              <p className="mt-2 max-w-xl leading-relaxed text-fg-muted">{s.detail}</p>
-            </motion.div>
-          </AnimatePresence>
+                  {s.live && (
+                    <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-signal">
+                      <span className="size-1.5 rounded-full bg-signal" />
+                      live
+                    </span>
+                  )}
+                </div>
+                <h3 className="mt-4 font-display text-2xl font-semibold tracking-tight text-fg">
+                  {s.title}
+                </h3>
+                <p className="mt-2 max-w-xl leading-relaxed text-fg-muted">{s.detail}</p>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* auto-advance progress bar */}
+            {!reduce && !paused && (
+              <motion.div
+                key={`bar-${active}`}
+                className="mt-5 h-0.5 origin-left rounded-full bg-signal/40"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: STEP_MS / 1000, ease: "linear" }}
+              />
+            )}
+          </div>
         </div>
 
         {/* foundation + triage legend, compact */}
