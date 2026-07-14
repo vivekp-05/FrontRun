@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Hero } from "@/components/landing/hero"
 import { Problem } from "@/components/landing/problem"
 import { Solution } from "@/components/landing/solution"
+import { HowItRuns } from "@/components/landing/how-it-runs"
 import { Stack } from "@/components/landing/stack"
 import { SponsorBelt } from "@/components/landing/sponsor-belt"
 import { Close } from "@/components/landing/close"
@@ -18,6 +19,7 @@ export default function PitchPage() {
       <Hero />
       <Problem />
       <Solution />
+      <HowItRuns />
       <Stack />
       <SponsorBelt />
       <Close />

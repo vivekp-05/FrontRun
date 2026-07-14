@@ -88,13 +88,13 @@ export function Hero() {
             drafts, sends, and books. End to end.
           </motion.p>
           <motion.div className="mt-10" {...enter(0.24)}>
-            <a
-              href="#live-demo"
+            <Link
+              href="/gate"
               className="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-5 font-medium text-signal-foreground transition-colors duration-[var(--dur-fast)] hover:bg-signal-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
             >
-              Watch it live
+              Watch the live demo
               <ArrowRight className="size-4" />
-            </a>
+            </Link>
           </motion.div>
         </div>
 

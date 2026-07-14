@@ -7,7 +7,7 @@ export function Close() {
     <section id="live-demo" className="scroll-mt-16">
       <div className="mx-auto w-full max-w-6xl px-6 py-28 md:py-36">
         <Reveal>
-          <p className="kicker">06 / The demo</p>
+          <p className="kicker">07 / The demo</p>
           <h2 className="mt-6 max-w-2xl font-display text-4xl font-semibold leading-[1.05] tracking-tight text-fg md:text-6xl">
             The raise just filed.
             <br />
@@ -23,7 +23,7 @@ export function Close() {
           </p>
           <div className="mt-10 flex items-center gap-6">
             <Link
-              href="/"
+              href="/gate"
               className="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-5 font-medium text-signal-foreground transition-colors duration-[var(--dur-fast)] hover:bg-signal-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
             >
               See the live demo

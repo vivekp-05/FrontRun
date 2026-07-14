@@ -15,7 +15,7 @@ export function Stack() {
     <section className="border-b border-line">
       <div className="mx-auto w-full max-w-6xl px-6 py-24">
         <Reveal>
-          <p className="kicker">04 / Built on the stack</p>
+          <p className="kicker">05 / Built on the stack</p>
           <h2 className="mt-5 max-w-xl font-display text-3xl font-semibold tracking-tight text-fg md:text-4xl">
             Every layer, a sponsor doing real work.
           </h2>

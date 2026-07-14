@@ -23,7 +23,7 @@ export function SponsorBelt() {
     <section className="overflow-hidden border-b border-line py-14">
       <Reveal>
         <p className="kicker mx-auto w-full max-w-6xl px-6">
-          05 / The reward stack
+          06 / The reward stack
         </p>
       </Reveal>
       <div
