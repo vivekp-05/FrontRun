@@ -96,6 +96,18 @@ Legend: ✅ value in repo-root `.env.local` · ⚠️ needed for full loop, not 
 | `TRIAGE_MODEL` | triage LLM model; unset ⇒ code default |
 | `MOCK_SEND`, `MOCK_TRIAGE`, `MOCK_LLM` | **leave unset** for the real demo (set `=1` only to force mocks) |
 
+### Live detection (dashboard realtime feed — B via C)
+While the dashboard is open, its 4s `/api/leads` poll piggybacks an EDGAR detect
+cycle at most once per `DETECT_INTERVAL_MS` (via `after()`, off the response
+path). `vercel.json` also runs `/api/cron/detect` daily as a backstop.
+
+| Var | Status | Notes |
+|---|---|---|
+| `CRON_SECRET` | ✅ | Vercel Cron sends it as the Bearer token to `/api/cron/detect`; unset ⇒ cron calls are refused (an unlocked dashboard cookie can still trigger manually) |
+| `DETECT_INTERVAL_MS` | — | optional, default `120000` (2 min between lazy cycles) |
+| `DETECT_MAX_PER_CYCLE` | — | optional, default `2` new companies per cycle |
+| `DETECT_DISABLED` | — | set `=1` to turn the lazy trigger off |
+
 ## Post-deploy webhook wiring (needs the live URL first)
 
 > ⚠️ Until both steps below land the secrets on Vercel, every webhook POST answers 503

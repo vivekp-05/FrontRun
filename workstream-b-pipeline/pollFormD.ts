@@ -29,10 +29,14 @@ interface EdgarSearchResponse {
 }
 
 /** A normalized hit plus the issuer CIK we need to fetch the filing document. */
-interface Candidate {
+export interface Candidate {
   signal: FormDSignal
   cik?: string
 }
+
+// The scan also runs inside serverless detect cycles (60s budget) — fail fast
+// on a hung EFTS request instead of eating the budget; callers catch/retry.
+const EDGAR_SEARCH_TIMEOUT_MS = 10_000
 
 export interface PollFormDOptions {
   env?: PipelineEnv
@@ -46,6 +50,19 @@ export interface PollFormDOptions {
 }
 
 export async function pollRecentFormD(options: PollFormDOptions = {}): Promise<FormDSignal[]> {
+  const candidates = await pollRecentFormDCandidates(options)
+
+  if (options.skipFilingDetails) return candidates.map((c) => c.signal)
+  // Fill real exec names / amount raised / address from primary_doc.xml (PRD §4).
+  return Promise.all(candidates.map((c) => enrichSignalFromFiling(c)))
+}
+
+/**
+ * Same scan, but keeps the issuer CIK alongside each signal so a caller can
+ * dedup cheaply first and detail-fetch (enrichSignalFromFiling) only the new
+ * ones — the detect cycle's pattern.
+ */
+export async function pollRecentFormDCandidates(options: PollFormDOptions = {}): Promise<Candidate[]> {
   const env = readPipelineEnv(options.env)
   const limit = options.limit ?? 10
   const lookbackDays = options.lookbackDays ?? 30
@@ -59,9 +76,7 @@ export async function pollRecentFormD(options: PollFormDOptions = {}): Promise<F
     candidates = await searchWindow(isoDateDaysAgo(fallbackLookbackDays), env, limit, includeFunds)
   }
 
-  if (options.skipFilingDetails) return candidates.map((c) => c.signal)
-  // Fill real exec names / amount raised / address from primary_doc.xml (PRD §4).
-  return Promise.all(candidates.map((c) => enrichSignalFromFiling(c)))
+  return candidates
 }
 
 /**
@@ -88,6 +103,7 @@ async function searchWindow(
       "User-Agent": requireEdgarUserAgent(env),
       Accept: "application/json",
     },
+    signal: AbortSignal.timeout(EDGAR_SEARCH_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -169,7 +185,7 @@ function normalizeEdgarHit(hit: EdgarHit): Candidate | null {
  * the real Form D fields: exec/director names, amount raised, mailing address.
  * Best-effort — a parse failure keeps the basic signal instead of dropping it.
  */
-async function enrichSignalFromFiling(candidate: Candidate): Promise<FormDSignal> {
+export async function enrichSignalFromFiling(candidate: Candidate): Promise<FormDSignal> {
   if (!candidate.cik) return candidate.signal
   try {
     const parsed = await fetchFormD(

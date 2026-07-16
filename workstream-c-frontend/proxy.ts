@@ -30,10 +30,13 @@ export function proxy(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl
 
   // Always public: the access API, provider webhooks (self-authenticating via
-  // signature verification in their handlers), and the two public pages.
+  // signature verification in their handlers), the cron endpoint (self-
+  // authenticating via CRON_SECRET bearer or the dashboard cookie — Vercel
+  // Cron calls carry no cookie), and the two public pages.
   if (
     pathname.startsWith("/api/access") ||
     pathname.startsWith("/api/webhooks/") ||
+    pathname.startsWith("/api/cron/") ||
     PUBLIC_PAGES.has(pathname)
   ) {
     return NextResponse.next()
