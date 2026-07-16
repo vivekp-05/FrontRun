@@ -1,6 +1,13 @@
 import { CompanyBrief, SearchProvider } from "../shared/types"
 import { PipelineEnv, readPipelineEnv } from "./env"
 
+/**
+ * Hard cap per You.com request. Research runs inside serverless detect cycles
+ * (60s budget) — a hung request must fail fast so the existing catch →
+ * fallbackBrief machinery kicks in instead of eating the whole budget.
+ */
+const YOU_FETCH_TIMEOUT_MS = 8_000
+
 interface YouSearchResult {
   title?: string
   url?: string
@@ -71,6 +78,7 @@ export class YouResearchProvider implements SearchProvider {
         "X-API-Key": apiKey,
         Accept: "application/json",
       },
+      signal: AbortSignal.timeout(YOU_FETCH_TIMEOUT_MS),
     })
 
     if (!response.ok) {
@@ -171,6 +179,7 @@ class YouMcpClient {
         ...(this.sessionId ? { "Mcp-Session-Id": this.sessionId } : {}),
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(YOU_FETCH_TIMEOUT_MS),
     })
 
     const sessionId = response.headers.get("mcp-session-id")

@@ -13,6 +13,9 @@ import { Lead, LeadStatus, FormDSignal } from "../shared/types";
 
 const UA = process.env.EDGAR_USER_AGENT || "Frontrun hackathon sharique.khatri@gmail.com";
 const FTS = "https://efts.sec.gov/LATEST/search-index";
+// Detection also runs inside serverless cycles (60s budget) — never let a hung
+// EDGAR request eat it. Failures here are caught/retried by the caller.
+const EDGAR_FETCH_TIMEOUT_MS = 10_000;
 
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -52,7 +55,10 @@ export async function searchRecentFormD(opts?: {
   const start = new Date(end.getTime() - (opts?.days ?? 14) * 86400000);
   const q = opts?.keyword ? encodeURIComponent(`"${opts.keyword}"`) : "";
   const url = `${FTS}?q=${q}&forms=D&startdt=${ymd(start)}&enddt=${ymd(end)}&from=${opts?.from ?? 0}`;
-  const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, Accept: "application/json" },
+    signal: AbortSignal.timeout(EDGAR_FETCH_TIMEOUT_MS),
+  });
   if (!res.ok) throw new Error(`EDGAR search ${res.status}`);
   const data: any = await res.json();
   const hits: any[] = data?.hits?.hits ?? [];
@@ -86,7 +92,10 @@ export async function fetchFormD(cik: string, accession: string, fileDate = ""):
   const acc = accession.replace(/-/g, "");
   const bareCik = cik.replace(/^0+/, "");
   const url = `https://www.sec.gov/Archives/edgar/data/${bareCik}/${acc}/primary_doc.xml`;
-  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA },
+    signal: AbortSignal.timeout(EDGAR_FETCH_TIMEOUT_MS),
+  });
   if (!res.ok) throw new Error(`Form D fetch ${res.status}`);
   const xml = await res.text();
 
